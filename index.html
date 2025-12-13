@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Life Solver</title>
+    <!-- Google Fonts for Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+      /* Custom scrollbar for better aesthetics */
+      ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px; /* Added for horizontal scrollbar height */
+      }
+      ::-webkit-scrollbar-track {
+          background: #fdf2f8; /* Light pink/violet track */
+          border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb {
+          background: #a78bfa; /* Vibrant purple thumb */
+          border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+          background: #8b5cf6; /* Darker purple on hover */
+      }
+      /* Utility class for Gaussian blur effect */
+      .blurred-image {
+          filter: blur(5px);
+      }
+
+      /* Custom animations for WelcomeScreen */
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+      }
+
+      @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
+      }
+      .animate-float {
+        animation: float 3s ease-in-out infinite;
+      }
+
+      /* Custom horizontal scrollbar for tabs */
+      .custom-scrollbar-horizontal::-webkit-scrollbar {
+        height: 12px; /* Set height for horizontal scrollbar */
+      }
+
+      .custom-scrollbar-horizontal::-webkit-scrollbar-track {
+        background: #f0f9ff; /* Very light blue track for horizontal */
+        border-radius: 10px;
+      }
+
+      .custom-scrollbar-horizontal::-webkit-scrollbar-thumb {
+        background: linear-gradient(to right, #a78bfa, #f472b6); /* Vibrant purple to pink gradient thumb */
+        border-radius: 10px;
+      }
+
+      .custom-scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(to right, #8b5cf6, #ec4899); /* Darker gradient on hover */
+      }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.31.0",
+    "marked": "https://aistudiocdn.com/marked@^17.0.1",
+    "dompurify": "https://aistudiocdn.com/dompurify@^3.3.0"
+  }
+}
+</script>
+</head>
+<body class="bg-gradient-to-br from-violet-50 to-pink-50 min-h-screen text-gray-800 antialiased">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
