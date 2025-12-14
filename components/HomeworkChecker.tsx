@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import ChatComponent from './ChatComponent';
 import { callGeminiApi } from '../services/geminiService';
@@ -127,7 +128,8 @@ Keep explanations short and direct. Your tone should be constructive and encoura
         systemInstruction: systemInstruction,
         temperature: 0.4,
       };
-      const aiResponse = await callGeminiApi(prompt, 'gemini-3-pro-preview', llmConfig);
+      // Changed from 'gemini-3-pro-preview' to 'gemini-2.5-flash' to ensure free tier usage
+      const aiResponse = await callGeminiApi(prompt, 'gemini-2.5-flash', llmConfig);
       setResponse(aiResponse);
       onAction(ActionType.HOMEWORK_CHECKED);
     } catch (err: any) {

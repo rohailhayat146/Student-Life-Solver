@@ -1,3 +1,5 @@
+
+
 import React, { useState, useCallback, useRef, useEffect, FormEvent } from 'react';
 import { callGeminiApi } from '../services/geminiService';
 import { LLMConfig, OnActionProps, DifficultyLevel, NoteFormat, ActionType } from '../types';
@@ -95,7 +97,10 @@ const PredictMyGrade: React.FC<PredictMyGradeProps> = ({ onAction }) => {
     notesSummarizerInputs: { notesInput: string; format: NoteFormat; },
     homeworkCheckerInputs: { question: string; userAnswer: string; rewriteRequested: boolean; }
   ): string => {
-    let prompt = `Predict my grade for **${currentSubjectName}**.
+    // Helper to truncate long strings to save tokens
+    const truncate = (str: string, len: number) => str.length > len ? str.substring(0, len) + '...' : str;
+
+    let prompt = `Predict my grade for **${truncate(currentSubjectName, 100)}**.
 My perceived difficulty for this subject is **${currentSubjectDifficulty}**.
 
 Here's some information about my general academic habits and performance:
@@ -105,28 +110,27 @@ Here's some information about my general academic habits and performance:
 
 **Study Routine Habits (from Study Routine Fixer):**
 - I usually study for ${studyRoutineInputs.hoursPerDay} hours per day.
-- My overall difficulty for my subjects (Math, Physics, etc.) is considered '${studyRoutineInputs.difficulty}'.
-- Subjects I've recently planned to study: ${studyRoutineInputs.subjects ? studyRoutineInputs.subjects : 'No subjects entered recently.'}.
+- My overall difficulty for my subjects is considered '${studyRoutineInputs.difficulty}'.
+- Subjects I've recently planned to study: ${studyRoutineInputs.subjects ? truncate(studyRoutineInputs.subjects, 150) : 'No subjects entered recently.'}.
 
 **Notes Quality (from Notes Cleaner & Smart Summarizer):**
-- I have recently used the notes summarizer tool. This indicates I'm working on my notes.
+- I have recently used the notes summarizer tool.
 - My preferred format for notes is '${notesSummarizerInputs.format}'.
 - Notes content length (approx.): ${notesSummarizerInputs.notesInput.length > 0 ? notesSummarizerInputs.notesInput.length + ' characters' : 'No recent notes input.'}
 
 **Homework Completion/Consistency (from Homework Checker):**
-- I have recently used the homework checker tool. This indicates engagement with homework.
-- Last checked question: '${homeworkCheckerInputs.question ? homeworkCheckerInputs.question : 'No recent homework checked.'}'.
-
+- I have recently used the homework checker tool.
+- Last checked question (snippet): '${homeworkCheckerInputs.question ? truncate(homeworkCheckerInputs.question, 250) : 'No recent homework checked.'}'.
 `;
 
     if (currentPastPerformance.trim()) {
       prompt += `\n**My Past Performance:**
-- ${currentPastPerformance.trim()}.`;
+- ${truncate(currentPastPerformance.trim(), 300)}.`;
     }
 
     if (currentQuizResults.trim()) {
       prompt += `\n**My Quiz or Practice Results:**
-- ${currentQuizResults.trim()}.`;
+- ${truncate(currentQuizResults.trim(), 300)}.`;
     }
 
     prompt += `\nPlease provide my predicted grade, the reasoning, and specific improvement steps to achieve a higher grade.`;
@@ -168,13 +172,19 @@ Here's some information about my general academic habits and performance:
         temperature: 0.7,
       };
 
-      const aiResponse = await callGeminiApi(prompt, 'gemini-3-pro-preview', llmConfig);
+      // Ensure free tier model is used
+      const aiResponse = await callGeminiApi(prompt, 'gemini-2.5-flash', llmConfig);
       setResponse(aiResponse);
       onAction(ActionType.GRADE_PREDICTED);
 
     } catch (err: any) {
       console.error("Predict My Grade API Error:", err);
-      setError(err.message || "Failed to predict grade.");
+      // Improved error message for quota issues
+      if (err.message && (err.message.includes('429') || err.message.includes('Quota') || err.message.includes('Resource exhausted'))) {
+          setError("Usage limit reached. Please wait a moment before trying again.");
+      } else {
+          setError(err.message || "Failed to predict grade.");
+      }
       setResponse(null);
     } finally {
       setLoading(false);
