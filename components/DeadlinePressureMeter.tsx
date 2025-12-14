@@ -27,7 +27,8 @@ const pressureAnalysisSchema = {
           priorityScore: { type: Type.NUMBER },
           pressureLevel: { type: Type.STRING }
         }
-      }
+      },
+      description: "List of analyzed tasks (max 7 critical ones)."
     },
     rescheduledPlan: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3-4 bullet points." },
     timelineData: {
@@ -58,17 +59,19 @@ const pressureAnalysisSchema = {
       }
     }
   },
-  required: ['pressureScore', 'pressureLevel', 'forecastMessage', 'tasks', 'timelineData', 'reliefTips', 'weeklySummary', 'weeklyInsight', 'forecastTrend']
+  required: ['pressureScore', 'pressureLevel', 'forecastMessage', 'tasks', 'timelineData', 'reliefTips', 'weeklySummary', 'weeklyInsight', 'forecastTrend', 'rescheduledPlan']
 };
 
 const SYSTEM_INSTRUCTION = `You are the Deadline Pressure Meter. Analyze workload, urgency, mood, and health.
 
-Output Rules:
-- Score: 0-100.
-- Timeline: 5 data points (Next 5 days).
-- Insight: Concise 1 sentence.
-- Trend: Rising/Improving/Stable.
-- Red Zone: Warn if score > 80.
+MANDATORY OUTPUT RULES:
+1. 'pressureScore': 0-100 score.
+2. 'pressureLevel': Low/Medium/High/Critical.
+3. 'rescheduledPlan': You MUST provide 3-4 specific, actionable, concrete steps. If tasks were added, prioritize fitting them in.
+4. 'timelineData': Generate exactly 5 data points for the next 5 days.
+5. 'reliefTips': 3 quick relief tips.
+6. 'tasks': Return a list of the analyzed tasks. **LIMIT to the top 7 most critical tasks** to save space, but calculate the score based on ALL input.
+7. 'forecastTrend': 'Improving' | 'Rising' | 'Stable'.
 
 Return ONLY JSON matching the schema.`;
 
@@ -249,29 +252,44 @@ const PremiumStressMap = ({ data, insight, trend, comparison }: {
 const DeadlinePressureMeter: React.FC<DeadlinePressureMeterProps> = ({ onAction }) => {
     const initialInputs = loadDeadlinePressureInputs();
     const [tasksInput, setTasksInput] = useState<string>(initialInputs.tasksInput);
+    const [quickAddInput, setQuickAddInput] = useState<string>(''); // For adding specific tasks
     const [userMood, setUserMood] = useState<string>('focused');
     const [analysis, setAnalysis] = useState<PressureAnalysis | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
+    const [isUpdating, setIsUpdating] = useState<boolean>(false); // For updating without unmounting results
     const [error, setError] = useState<string | null>(null);
     
     useEffect(() => {
         saveDeadlinePressureInputs({ tasksInput });
     }, [tasksInput]);
 
-    const handleSubmit = async (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent, isUpdate: boolean = false) => {
         e.preventDefault();
-        if (!tasksInput.trim()) return;
+        // If coming from quick add, append it first
+        let currentTasks = tasksInput;
+        if (isUpdate && quickAddInput.trim()) {
+            currentTasks = tasksInput.trim() ? `${tasksInput}\n${quickAddInput}` : quickAddInput;
+            setTasksInput(currentTasks);
+            setQuickAddInput(''); // Clear quick add field
+        }
 
-        setLoading(true);
+        if (!currentTasks.trim()) return;
+
         setError(null);
-        setAnalysis(null);
+        
+        if (isUpdate) {
+            setIsUpdating(true);
+        } else {
+            setLoading(true);
+            setAnalysis(null);
+        }
 
         try {
             const prompt = `
-            Analyze the following tasks/deadlines and user mood to calculate stress pressure.
+            Analyze the following workload (which may have been updated) to calculate stress pressure.
             
             Tasks:
-            ${tasksInput}
+            ${currentTasks}
 
             User Mood: ${userMood}
             Date: ${new Date().toLocaleDateString()}
@@ -296,17 +314,25 @@ const DeadlinePressureMeter: React.FC<DeadlinePressureMeterProps> = ({ onAction 
             setError("Failed to calculate pressure. Please try again.");
         } finally {
             setLoading(false);
+            setIsUpdating(false);
         }
     };
 
     return (
-        <div className="p-4 sm:p-6 bg-white rounded-lg shadow-lg">
+        <div className="p-4 sm:p-6 bg-white rounded-lg shadow-lg relative min-h-[400px]">
+             {/* Global Overlay Loader for Updates */}
+            {isUpdating && (
+                <div className="absolute inset-0 bg-white bg-opacity-80 z-50 flex flex-col items-center justify-center rounded-lg animate-fade-in">
+                    <Loader message="Recalculating Pressure with new tasks..." />
+                </div>
+            )}
+
             <h2 className="text-2xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-orange-500 drop-shadow-sm">
                 ⏳ Deadline Pressure Meter
             </h2>
 
             {!analysis ? (
-                <form onSubmit={handleSubmit} className="space-y-6 animate-fade-in">
+                <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6 animate-fade-in">
                     <div>
                         <label className="block text-lg font-bold text-gray-800 mb-2">
                             What's on your plate? (Tasks & Deadlines)
@@ -381,14 +407,18 @@ const DeadlinePressureMeter: React.FC<DeadlinePressureMeterProps> = ({ onAction 
                         <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                            🗓️ Recommended Action Plan
                         </h3>
-                        <ul className="space-y-3">
-                            {analysis.rescheduledPlan.map((step, idx) => (
-                                <li key={idx} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                    <span className="bg-red-100 text-red-600 font-bold rounded-lg w-6 h-6 flex items-center justify-center text-xs shrink-0 mt-0.5">{idx + 1}</span>
-                                    <span className="text-gray-700 font-medium text-sm">{step}</span>
-                                </li>
-                            ))}
-                        </ul>
+                        {analysis.rescheduledPlan && analysis.rescheduledPlan.length > 0 ? (
+                            <ul className="space-y-3">
+                                {analysis.rescheduledPlan.map((step, idx) => (
+                                    <li key={idx} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                        <span className="bg-red-100 text-red-600 font-bold rounded-lg w-6 h-6 flex items-center justify-center text-xs shrink-0 mt-0.5">{idx + 1}</span>
+                                        <span className="text-gray-700 font-medium text-sm">{step}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-gray-500 text-sm italic">No specific rescheduling needed. You're on track!</p>
+                        )}
                     </div>
                     
                     {/* Relief Tips */}
@@ -405,13 +435,70 @@ const DeadlinePressureMeter: React.FC<DeadlinePressureMeterProps> = ({ onAction 
                         </div>
                     </div>
 
-                    <div className="text-center pt-4">
-                        <button 
-                            onClick={() => setAnalysis(null)}
-                            className="text-gray-400 hover:text-gray-600 font-bold text-sm underline"
-                        >
-                            Check Another Workload
-                        </button>
+                    {/* Add/Update Tasks Section */}
+                    <div className="bg-orange-50 rounded-3xl p-6 border border-orange-100 shadow-sm mt-8 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-orange-100 rounded-full blur-2xl -mr-12 -mt-12 pointer-events-none"></div>
+                        
+                        <div className="flex justify-between items-center mb-4 relative z-10">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                               ✏️ Update Workload
+                            </h3>
+                            <button 
+                                onClick={() => { setTasksInput(''); setAnalysis(null); }}
+                                className="text-xs font-bold text-orange-600 hover:text-orange-800 underline bg-orange-50 px-3 py-1 rounded-lg"
+                            >
+                                Start New Analysis
+                            </button>
+                        </div>
+                        
+                        <p className="text-sm text-gray-600 mb-3 font-medium">
+                            Add new tasks to your current list and see how the plan changes!
+                        </p>
+
+                        {/* Quick Add Section */}
+                        <div className="mb-4 flex gap-2">
+                            <input 
+                                type="text" 
+                                placeholder="Quick add: e.g., 'Chemistry Lab due Wed'" 
+                                className="flex-grow p-3 rounded-xl border-2 border-orange-200 focus:outline-none focus:ring-2 focus:ring-orange-300 font-medium text-sm"
+                                value={quickAddInput}
+                                onChange={(e) => setQuickAddInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleSubmit(e, true);
+                                    }
+                                }}
+                            />
+                            <button
+                                onClick={(e) => handleSubmit(e, true)}
+                                disabled={isUpdating || !quickAddInput.trim()}
+                                className="px-4 py-2 bg-orange-500 text-white font-bold rounded-xl hover:bg-orange-600 disabled:opacity-50 whitespace-nowrap shadow-md text-sm"
+                            >
+                                + Add & Recalc
+                            </button>
+                        </div>
+
+                        {/* Expandable Full List */}
+                        <details className="group">
+                            <summary className="flex items-center text-xs font-bold text-gray-500 cursor-pointer mb-2 hover:text-orange-600">
+                                <span>Show/Edit Full Task List</span>
+                                <span className="ml-1 transition-transform group-open:rotate-180">▼</span>
+                            </summary>
+                            <textarea 
+                                value={tasksInput}
+                                onChange={(e) => setTasksInput(e.target.value)}
+                                className="w-full p-3 border-2 border-gray-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 font-bold text-gray-700 h-24 resize-none placeholder-gray-400 text-sm mb-3"
+                                placeholder="Update your tasks here..."
+                            />
+                            <button 
+                                onClick={(e) => handleSubmit(e, true)}
+                                disabled={isUpdating}
+                                className="w-full py-2 bg-white border-2 border-orange-200 text-orange-700 font-bold rounded-xl shadow-sm hover:bg-orange-50 transition-all text-sm"
+                            >
+                                🔄 Recalculate Full List
+                            </button>
+                        </details>
                     </div>
                 </div>
             )}
